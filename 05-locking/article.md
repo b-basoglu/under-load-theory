@@ -305,6 +305,7 @@ Moving an existing codebase to versioned writes is a migration like any other.
 - **Optimistic conflict rate.** Failed version checks divided by attempts, per operation. A low steady rate is normal; a rising one means that resource is getting hot.
 - **Retries per successful operation.** The clearest sign of optimistic locking collapsing. Anything well above one means requests are mostly redoing work.
 - **Lock wait time.** In PostgreSQL, sessions waiting on locks show up in `pg_stat_activity` (`wait_event_type = 'Lock'`), and `log_lock_waits = on` logs every wait longer than `deadlock_timeout`. In MySQL, `performance_schema.data_lock_waits`.
+- **Failed lock attempts.** PostgreSQL 18's `log_lock_failures` logs `NOWAIT` (and similar) attempts that couldn't take the lock — useful when user-facing edit paths refuse instead of waiting.
 - **Deadlocks.** `pg_stat_database.deadlocks` in PostgreSQL; error `1213` counts and `SHOW ENGINE INNODB STATUS` in MySQL.
 - **P99 transaction latency** of the contested operations. Both waiting and retrying show up there first.
 - **Aborted transactions**, including lock timeouts (`55P03`), deadlocks and serialization failures.
