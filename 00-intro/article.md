@@ -1,6 +1,6 @@
 # Under Load: A Series on How Real Systems Break — and How Good Teams Keep Them Standing
 
-### 53 backend and AI infrastructure concepts, explained the way they show up in production, design reviews and postmortems.
+### Working notes on 53 backend and AI infrastructure concepts — the way they show up in production, design reviews and postmortems.
 
 *Under Load · Part 0 · Start here*
 
@@ -14,15 +14,15 @@ The schema is clean, the cache hit rate is great, every request finishes well un
 
 Most postmortems have the same shape. The root cause is rarely exotic. It's a well-known concept — a missing index, a retry without jitter, a cache that expired for everyone at the same second, two writers that both thought they held the lock. The team had *heard of* the concept. What they didn't have was an intuition for how it behaves when the system is **under load**.
 
-That intuition is what this series is about.
+I'm writing that intuition down here as working notes: one idea at a time, the way it shows up in production, design reviews and postmortems.
 
 ---
 
-## Why this series
+## Why I'm writing this down
 
-The further an engineering career goes, the less the hard part is writing code and the more it's judgment: looking at a design and asking "what happens when this is ten times bigger?", or keeping an incident call focused on the right hypothesis.
+The further I go as an engineer, the less the hard part is writing code and the more it's judgment: looking at a design and asking "what happens when this is ten times bigger?", or keeping an incident call focused on the right hypothesis.
 
-That judgment comes from understanding a small set of core ideas deeply — how they work mechanically, where they fail, what they cost, and how to operate them. That's what each part of this series covers, one idea at a time.
+That judgment comes from understanding a small set of core ideas deeply — how they work mechanically, where they fail, what they cost, and how to operate them. That's what each part covers, one idea at a time.
 
 ---
 
@@ -42,7 +42,7 @@ Where it helps, a topic also has a **lab** in the public [`under-load`](https://
 
 Each lab folder under [`b-basoglu/under-load`](https://github.com/b-basoglu/under-load) holds the scripts, README, measured results, and the lab write-up with charts. Labs ship after they have been run and reviewed on the machine noted below.
 
-**How the numbers were produced (so far):** PostgreSQL 17 in Docker on an **Apple MacBook Pro (M2 Pro, 12-core, 16 GB)**. Timings are medians of warm `EXPLAIN (ANALYZE, BUFFERS)` unless noted; concurrent load uses `pgbench`. Absolute milliseconds are laptop-class and will move on another machine; what should stay stable is *which* plan wins and by roughly how much. LLM labs (later parts) use small open instruct models on the same machine — details sit in each lab's README.
+**How the numbers were produced:** Database labs run **PostgreSQL 17 in Docker** on an **Apple MacBook Pro (M2 Pro, 12-core, 16 GB)**. Timings are medians of warm `EXPLAIN (ANALYZE, BUFFERS)` unless noted; concurrent load uses `pgbench`. Absolute milliseconds are laptop-class and will move on another machine; what should stay stable is *which* plan wins and by roughly how much. LLM labs use small open instruct models on the same machine — details sit in each lab's README.
 
 ---
 
