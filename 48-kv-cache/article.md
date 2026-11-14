@@ -125,7 +125,7 @@ The three observations from the incident line up with the two phases:
 - Once decoding started, each step processed one token as before; it only had a longer cache to attend over, so the stream slowed slightly.
 - Every one of those long conversations held a large cache in GPU memory, and Monday morning put many of them on the GPUs at once.
 
-Because the two phases have different bottlenecks, they're measured separately and increasingly managed separately. **Chunked prefill** splits a long prompt into pieces interleaved with other requests' decode steps, so one huge prompt doesn't stall everyone else's stream. Large deployments sometimes go further with **disaggregated prefill and decode**: separate pools of machines for each phase, with caches transferred between them, so each pool can be sized and tuned for its own bottleneck.
+Because the two phases have different bottlenecks, they're measured separately and increasingly managed separately. **Chunked prefill** splits a long prompt into pieces interleaved with other requests' decode steps, so one huge prompt doesn't stall everyone else's stream. Large deployments go further with **disaggregated prefill and decode**: separate pools of machines for each phase, with caches transferred between them, so each pool can be sized and tuned for its own bottleneck. This is no longer exotic — vLLM (still marked experimental), SGLang, NVIDIA Dynamo and llm-d all support it.
 
 ---
 
@@ -180,6 +180,8 @@ Because the cache determines serving capacity, a lot of engineering goes into sh
 In original **multi-head attention (MHA)**, every query head has its own key and value head. **Multi-query attention (MQA)**, proposed in 2019, shares a single key/value head across all query heads, shrinking the cache by the number of heads — at some cost in quality. **Grouped-query attention (GQA)**, proposed in 2023, is the middle ground: query heads are divided into groups, and each group shares one key/value head. With 32 query heads and 8 KV heads, the cache is four times smaller than MHA, with quality close to it.
 
 GQA is used by most current open-weight model families; it's why the Llama 3 8B example above has 8 KV heads rather than 32. Newer designs go further — for example, DeepSeek's **multi-head latent attention** stores a compressed latent vector per token instead of full keys and values.
+
+Another approach is to stop giving every layer a full cache. **Hybrid attention** models mix layer types. Gemma 3 puts five **local** layers, which attend only to the last 1,024 tokens, between each pair of global layers; a local layer's cache stops growing at its window. Models such as Qwen3-Next replace most attention layers with **linear-attention** layers (Gated DeltaNet) that keep a fixed-size state instead of a per-token cache, and keep full attention in only one layer out of four. In both cases only the full-attention layers grow with context, so the cache cost per token is a fraction of what the layer count suggests — and a capacity estimate has to read the model's layer layout, not just its config's layer count.
 
 These are **model architecture** choices, fixed when the model is trained. For a team choosing a model to serve, the KV heads, layers and head dimension in the model's configuration determine its cache cost per token, and are worth comparing alongside quality and parameter count.
 

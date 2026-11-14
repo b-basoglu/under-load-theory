@@ -104,7 +104,7 @@ Each piece is there for a reason:
 
 - **`SET key value NX PX 10000`** writes the lock only if it doesn't already exist (`NX`), with an expiry of 10,000 milliseconds (`PX`). The check and the write happen in one atomic Redis command, so exactly one caller wins. The expiry means a rebuilder that crashes can't hold the lock forever.
 - **The second `get` after taking the lock** closes a subtle gap. A request can see the key missing, then the previous rebuilder finishes and releases the lock, and the request takes the now-free lock and rebuilds a value that was written a millisecond ago. Re-checking after acquiring the lock is the same "double-checked" idea used for lazy initialization in concurrent code.
-- **The random token and compare-and-delete.** If a rebuild takes longer than the lock's expiry, the lock disappears on its own and a second request can take it. When the first request then finishes and blindly deletes `lock:dash`, it deletes the *second* request's lock. Storing a unique token and deleting only if the value still matches — done atomically with a short Lua script, because a separate `GET` and `DEL` would race — prevents that:
+- **The random token and compare-and-delete.** If a rebuild takes longer than the lock's expiry, the lock disappears on its own and a second request can take it. When the first request then finishes and blindly deletes `lock:dash`, it deletes the *second* request's lock. Storing a unique token and deleting only if the value still matches — done atomically with a short Lua script, because a separate `GET` and `DEL` would race — prevents that (Redis 8.4's `DELEX key IFEQ token` and Valkey 9.0's `DELIFEQ` do the same in one command):
 
 ```lua
 -- release_if_owner: KEYS[1] = lock key, ARGV[1] = my token
@@ -279,7 +279,7 @@ Things to know before reaching for one:
 - **It must be kept up to date.** Every new ticket has to be added to the filter when it's created, or it will be rejected as nonexistent — a correctness bug, not a performance one. That means the filter needs a reliable update path (on create, or from a change stream as in Part 30) and a way to rebuild it from scratch.
 - **Standard Bloom filters can't remove items.** Deleted ids stay "maybe" forever, which is harmless — they fall through to negative caching. Over time, though, the false-positive rate rises as the filter fills, so it should be sized for growth and rebuilt periodically. *Counting Bloom filters* and *cuckoo filters* support deletion at the cost of more memory per item.
 - **False positives are a tuning knob, not a bug.** A 1% rate means 1% of random probes still reach the cache. Combined with negative caching and rate limiting, that's usually plenty.
-- **Where to get one:** Redis has them through the RedisBloom module (`BF.RESERVE`, `BF.ADD`, `BF.EXISTS`), which ships with Redis Stack, and most languages have libraries for an in-process filter.
+- **Where to get one:** Redis 8 and later include Bloom filters in the server itself (`BF.RESERVE`, `BF.ADD`, `BF.EXISTS`); older versions needed the RedisBloom module or Redis Stack. Valkey offers the same commands through its official `valkey-bloom` module. Most languages also have libraries for an in-process filter.
 - **It's operational complexity.** One more structure to size, populate, rebuild and monitor. For most products, validation, negative caching and rate limiting are enough; a Bloom filter earns its place when the id space is large and probing is constant.
 
 ### Defense 4: limit the clients that cause it

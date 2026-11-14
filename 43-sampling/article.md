@@ -252,6 +252,8 @@ The chain looks like this:
 
 On top of the numerics, hosted APIs change: model snapshots are updated, serving infrastructure changes, and some APIs don't implement T = 0 as pure greedy decoding. OpenAI offers a `seed` parameter and a `system_fingerprint` field to make repeated sampling *mostly* reproducible, and documents that determinism isn't guaranteed. Anthropic's documentation notes that even at temperature 0, results won't be fully deterministic.
 
+Self-hosted engines can now remove the batch effect. vLLM's **batch-invariant mode** (`VLLM_BATCH_INVARIANT=1`, still marked beta) and SGLang's `--enable-deterministic-inference` swap in kernels whose results don't depend on what else is in the batch, so the same request gives the same output on the same hardware and software — at a cost in throughput. That's worth it for evaluation runs, debugging and reinforcement-learning pipelines, rarely for the main serving path.
+
 The practical rule: **low temperature makes outputs stable enough to test against; it doesn't make them reproducible.** Anything that must be reproducible — a decision that was acted on, an audit trail, an evaluation baseline — should be **stored**, not regenerated. And tests of LLM features should assert on properties (valid label, correct field, schema passes) rather than exact strings.
 
 ---

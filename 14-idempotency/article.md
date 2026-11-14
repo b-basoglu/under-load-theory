@@ -201,9 +201,9 @@ Even this leaves a tiny window — sent, then crashed before the insert committe
 **Decide which failures to store.** Two policies are common:
 
 - **Store only final outcomes.** Success and deterministic errors (a validation failure that will fail the same way next time) are stored. Transient failures — the database was briefly unavailable, a downstream timeout before anything happened — release the claim, so the retry can actually succeed.
-- **Store everything, including server errors.** Stripe documents this behaviour: the first result for a key is returned for all later requests with that key, even a `500`. It's simpler and maximally predictable, but a transient error then sticks for the life of the key, and the client must use a new key — a new operation — to try again.
+- **Store everything, including server errors.** Stripe's original (v1) API documents this behaviour: the first result for a key is returned for all later requests with that key, even a `500`. It's simpler and maximally predictable, but a transient error then sticks for the life of the key, and the client must use a new key — a new operation — to try again.
 
-Either works, as long as clients know which one they're dealing with.
+Either works, as long as clients know which one they're dealing with. Stripe's newer v2 API shows a third option: a retry with the same key **re-executes whatever failed** and returns an updated response, while anything that already succeeded is not done again. That is the friendliest behaviour for clients, and the hardest to build, because every step of the operation must itself be safe to repeat.
 
 **Don't store too much.** The stored response may contain personal data. Store what the client needs to continue — the ticket id and status — rather than a full copy of a large response, and expire it.
 
@@ -211,7 +211,7 @@ Either works, as long as clients know which one they're dealing with.
 
 ## How long to keep keys
 
-Keys can't be stored forever, and they don't need to be. A key only has to live as long as a client might still retry that operation. Stripe documents that keys can be removed after they're at least 24 hours old; a day is a common default. Choose a value longer than the longest retry window in the system, including mobile apps that queue actions while offline and retry hours later.
+Keys can't be stored forever, and they don't need to be. A key only has to live as long as a client might still retry that operation. Stripe's v1 API documents that keys can be removed after they're at least 24 hours old, while its v2 API treats requests with the same key as replays for up to 30 days; a day is a common minimum. Choose a value longer than the longest retry window in the system, including mobile apps that queue actions while offline and retry hours later.
 
 Two consequences to accept knowingly:
 

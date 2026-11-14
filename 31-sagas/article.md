@@ -91,7 +91,7 @@ The upgrade orchestrator might live in the accounts service or in a dedicated wo
 - **The risk** is an orchestrator that slowly absorbs business logic from the services it calls — deciding seat limits, computing prices — until it's a central service every team must change.
 - **It fits** flows with many steps, branching, deadlines, human approvals, or a strong need to see each instance's progress.
 
-Workflow engines such as **Temporal**, **AWS Step Functions** and **Camunda** are orchestrators with durable state built in: they record every step's outcome, so a workflow survives crashes of the process running it, and they provide timers, retries and visibility out of the box.
+Workflow engines such as **Temporal**, **AWS Step Functions** and **Camunda** are orchestrators with durable state built in: they record every step's outcome, so a workflow survives crashes of the process running it, and they provide timers, retries and visibility out of the box. A newer, lighter family calls this **durable execution**: the saga is written as ordinary code, and a runtime checkpoints each step so that after a crash it resumes from the last completed step instead of starting over. **Restate** is a standalone durable-execution runtime, **DBOS** is a library that keeps the workflow state in the application's own PostgreSQL, and **AWS Lambda durable functions** (December 2025) checkpoint a function's progress and can suspend it for up to a year while it waits.
 
 ### Choreography
 

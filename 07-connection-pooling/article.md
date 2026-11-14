@@ -185,7 +185,7 @@ Because consecutive transactions from the same client can run on **different** d
 
 - **`SET` commands.** A client runs `SET statement_timeout = '2s'` outside a transaction. That command runs on whichever database connection it was given, and the client's next statement may land on a different one that never saw it — while some *other* client may later inherit the changed setting. The value appears and disappears unpredictably. Use `SET LOCAL` inside a transaction instead, or set defaults per database user (`ALTER ROLE ... SET ...`).
 - **Session-level advisory locks**, `LISTEN`/`NOTIFY` and temporary tables, for the same reason. Use the transaction-scoped versions (`pg_advisory_xact_lock`) or a separate session-mode connection for these.
-- **Prepared statements.** Many drivers prepare statements on a connection and reuse them. Before PgBouncer 1.21, this failed in transaction mode. Newer versions can track protocol-level prepared statements (`max_prepared_statements`), but check that the driver and version work together — or turn off automatic preparation in the driver.
+- **Prepared statements.** Many drivers prepare statements on a connection and reuse them. Before PgBouncer 1.21, this failed in transaction mode. Version 1.21 added tracking of protocol-level prepared statements (`max_prepared_statements`), and since 1.24 it is on by default. It covers statements prepared through the driver's protocol messages, not SQL-level `PREPARE`, so check that the driver and version work together — or turn off automatic preparation in the driver.
 
 A pooler is also another network hop and another component that can fail. Run more than one, and monitor it like the database.
 
@@ -249,7 +249,7 @@ Every other request waits for a connection and fails after the acquisition timeo
 It sits between applications and the database and shares a few real database connections among many cheap client connections. In transaction mode, a client holds a database connection only for one transaction, so hundreds of clients can share a pool of a few dozen.
 
 ### What breaks with transaction-mode pooling?
-Anything that depends on session state, because consecutive transactions can run on different database connections: `SET` commands, session-level advisory locks, `LISTEN`/`NOTIFY`, temporary tables and, with older versions, prepared statements. `SET LOCAL`, per-role defaults and transaction-scoped locks are the replacements.
+Anything that depends on session state, because consecutive transactions can run on different database connections: `SET` commands (PgBouncer 1.26 and later carries over the parameters PostgreSQL reports to clients, such as `search_path` on PostgreSQL 18, but not arbitrary settings), session-level advisory locks, `LISTEN`/`NOTIFY`, temporary tables and, with older versions, prepared statements. `SET LOCAL`, per-role defaults and transaction-scoped locks are the replacements.
 
 ### Why keep the pool size fixed?
 Because a growing pool opens new connections — the expensive operation — exactly when the system is under the most load. A fixed size (minimum equal to maximum) keeps connection creation out of the critical moment and makes the total connection count predictable.

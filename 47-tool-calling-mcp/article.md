@@ -109,20 +109,22 @@ A server can offer three **primitives**:
 - **Resources** — data the application can read and put into context: a file, a document, a database record, identified by a URI. Resources are typically chosen by the application or the user rather than invoked by the model.
 - **Prompts** — reusable prompt templates the server offers, such as "summarize this ticket thread," which users can pick from a menu.
 
-The protocol also lets servers ask things *of* the client — for example, to request a model completion through the host (**sampling**) or to ask the user for input (**elicitation**) — always mediated by the host so the user stays in control.
+A server sometimes needs something *from* the client in the middle of a call — the user's confirmation, a missing value (**elicitation**), or a model completion through the host (**sampling**). Earlier revisions let the server send its own requests back to the client for this. The current revision (2026-07-28) replaces that with **multi-round-trip requests**: the server answers the call with an *input required* result listing what it needs, and the client retries the same call with the answers attached. The host still mediates every step, so the user stays in control. Sampling, roots and server-side logging are now deprecated, and new implementations shouldn't add them.
 
 ### The messages
 
-![An MCP session, message by message](images/05-mcp-session.png)
+![MCP messages, request by request](images/05-mcp-session.png)
 
-MCP messages are **JSON-RPC 2.0**: small JSON objects with a method name, parameters and an ID, answered by a matching result or error. They travel over one of two standard **transports**: **stdio**, where the host launches a local server as a subprocess and exchanges messages over its standard input and output; or **Streamable HTTP**, for remote servers, where the client sends messages as HTTP requests and the server can stream responses.
+MCP messages are **JSON-RPC 2.0**: small JSON objects with a method name, parameters and an ID, answered by a matching result or error. They travel over one of two standard **transports**: **stdio**, where the host launches a local server as a subprocess and exchanges messages over its standard input and output; or **Streamable HTTP**, for remote servers, where each message is an HTTP POST to a single endpoint and the reply comes back as JSON or as a short stream scoped to that request.
 
-A session follows a fixed lifecycle:
+Since the 2026-07-28 revision, MCP is **stateless**: there's no connection handshake and no protocol-level session. Every request stands on its own, so any server instance behind a load balancer can answer it.
 
-1. **Initialize.** The client sends `initialize` with the protocol version and its capabilities; the server answers with its own version, capabilities and identity; the client confirms with an `initialized` notification.
-2. **Discover.** The client calls `tools/list` (and `resources/list`, `prompts/list`) and receives each tool's name, description and input schema. The host converts these into tool definitions for its model — the model itself never needs to know MCP is involved.
+1. **Describe yourself on every request.** Each request carries the protocol version and the client's capabilities in its `_meta` field. The server accepts or rejects each request on its own; a version it doesn't support gets an explicit error. A client that wants to know up front can call `server/discover`, which returns the server's supported versions, capabilities and identity.
+2. **Discover.** The client calls `tools/list` (and `resources/list`, `prompts/list`) and receives each tool's name, description and input schema. The lists are the same for every caller, so they can be cached. The host converts these into tool definitions for its model — the model itself never needs to know MCP is involved.
 3. **Use.** When the model requests a call, the host asks the client to send `tools/call` with the tool name and arguments; the server runs the operation and returns the result as content blocks (text, images, structured data) or an error flagged as such.
-4. **React to change.** A server that supports it sends `notifications/tools/list_changed` when its tools change, and the client lists them again. A tool added to the server becomes available to every connected application without any change to their code.
+4. **React to change.** A client that wants updates opens one long-lived `subscriptions/listen` stream and opts in to the change types it cares about. When the server's tools change, it sends `notifications/tools/list_changed` on that stream, and the client lists them again. A tool added to the server becomes available to every connected application without any change to their code.
+
+Older revisions (2025-11-25 and earlier) opened every connection with an `initialize` / `initialized` handshake and, over HTTP, tracked a session with the `Mcp-Session-Id` header. You'll still meet servers and clients that speak only that version; a server can support both, because a request that starts with `initialize` selects the old behaviour.
 
 That last property is the practical value. When the product's MCP server gains a `list_open_tickets` tool, Halcyon's internal assistant, an IDE agent and the product's own support assistant can all use it the next time they list tools.
 
@@ -138,7 +140,7 @@ The specification is explicit that hosts should obtain user consent before invok
 
 ### Remote servers and authorization
 
-A local stdio server runs with the user's own machine permissions. A **remote** server — such as the one Halcyon asked for — is a web service, and it needs real authorization. The MCP specification builds this on **OAuth 2.1**: the MCP server acts as an OAuth resource server, the client obtains an access token for the specific user through the normal authorization flow, and every request carries it. Two rules from the specification matter most:
+A local stdio server runs with the user's own machine permissions. A **remote** server — such as the one Halcyon asked for — is a web service, and it needs real authorization. The MCP specification builds this on **OAuth 2.1**: the MCP server acts as an OAuth resource server, the client obtains an access token for the specific user through the normal authorization flow, and every request carries it. Clients should register by publishing a **Client ID Metadata Document** — a small JSON file at an HTTPS URL that serves as the client's ID; the older dynamic client registration still works but is deprecated. Two rules from the specification matter most:
 
 - **Tokens are scoped to the server they were issued for.** A server must verify that a token was issued for *it*, not just that it's valid.
 - **No token passthrough.** A server must not take the token it received and forward it to upstream APIs. It authenticates to those APIs with its own credentials, scoped appropriately — otherwise it becomes a "confused deputy," carrying out actions with authority that was never meant for it.
@@ -214,7 +216,7 @@ The application sends tool definitions (name, description, argument schema); the
 They're generated text: they can be malformed, or well formed and wrong. Strict schemas or constrained decoding guarantee structure; checks against real records and permissions catch wrong values before anything runs.
 
 ### What does MCP standardize?
-A JSON-RPC 2.0 protocol, over stdio or Streamable HTTP, for AI applications (hosts and their clients) to discover and invoke tools, read resources and use prompts exposed by servers, with a defined lifecycle and change notifications. It turns N×M integrations into N+M. It doesn't decide which tool to call, make calls safe, or make servers trustworthy.
+A JSON-RPC 2.0 protocol, over stdio or Streamable HTTP, for AI applications (hosts and their clients) to discover and invoke tools, read resources and use prompts exposed by servers, with stateless requests (since 2026-07-28) and opt-in change notifications. It turns N×M integrations into N+M. It doesn't decide which tool to call, make calls safe, or make servers trustworthy.
 
 ### Can an agent use MCP-exposed tools?
 Yes. An agent is a loop of model decisions and tool calls; MCP is one way to supply its tools. They're complementary, not alternatives — and tool calling works without MCP too.

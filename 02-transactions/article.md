@@ -150,6 +150,7 @@ Other differences worth knowing:
 
 - **SQL Server's** Read Committed traditionally uses locks, so readers can wait for writers. With the `READ_COMMITTED_SNAPSHOT` option turned on (the default in Azure SQL Database), it uses snapshots instead, like PostgreSQL.
 - **Oracle** has no Repeatable Read at all. Its Serializable is actually snapshot isolation, similar to PostgreSQL's Repeatable Read.
+- **MariaDB**, which shares InnoDB's history with MySQL, now diverges from it: since version 11.6.2 its `innodb_snapshot_isolation` setting is on by default, and an update to a row changed after the transaction's snapshot fails with error 1020 instead of silently overwriting. Same engine family, same level name, different answer to Take ticket.
 
 The lesson: never assume behavior from the level's name. Check your database's documentation for the exact level you use — and when a rule matters, test the race itself: two connections, the same two transactions, interleaved by hand.
 
@@ -295,7 +296,7 @@ Practical rules:
 
 - **Never wait on the network inside a transaction.** No HTTP calls, no message publishing, no waiting for user input. Read, decide, write, commit.
 - **Watch out for framework defaults.** Some frameworks wrap an entire web request in a transaction (`@Transactional` on a controller, "atomic requests" settings). That makes every slow step of the request part of the transaction.
-- **Set timeouts as a safety net.** In PostgreSQL, `idle_in_transaction_session_timeout` ends sessions (database connections) that opened a transaction and then stopped doing anything. `lock_timeout` limits how long a statement waits for a lock, and `statement_timeout` limits how long any statement can run.
+- **Set timeouts as a safety net.** In PostgreSQL, `idle_in_transaction_session_timeout` ends sessions (database connections) that opened a transaction and then stopped doing anything. `lock_timeout` limits how long a statement waits for a lock, `statement_timeout` limits how long any statement can run, and `transaction_timeout` (PostgreSQL 17 and later) limits how long a whole transaction may stay open.
 
 ---
 

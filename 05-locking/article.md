@@ -150,6 +150,7 @@ It is not just a SQL idea. The same pattern exists in most data stores:
 - **DynamoDB:** a `ConditionExpression` on a write, like `attribute_not_exists(assignee)` or `version = :expected`. The write fails with `ConditionalCheckFailedException` if the condition is false.
 - **Redis:** `WATCH` a key, then run the change in a `MULTI`/`EXEC` block. `EXEC` does nothing if the watched key changed. (For single operations, `INCR` or a Lua script are atomic by themselves.)
 - **etcd:** transactions that compare a key's revision before writing.
+- **Amazon S3:** conditional writes — `If-Match` with the ETag that was read, so the upload fails with `412 Precondition Failed` if someone else replaced the object in between, or `If-None-Match: *` to create an object only if it doesn't exist yet.
 
 Whenever the check and the change can be expressed as one operation, use that first.
 

@@ -211,6 +211,8 @@ Some rules can be declared directly, and then the database enforces them no matt
 
   `&&` means "overlaps." A second, overlapping shift inserted at the same moment waits for the first transaction and then fails with error `23P01` (exclusion violation).
 
+  PostgreSQL 18 adds a more readable form of the same rule, **temporal constraints**: `PRIMARY KEY (agent_id, during WITHOUT OVERLAPS)` or the same with `UNIQUE`, plus `FOREIGN KEY (…, PERIOD during)` to require that a referenced row covers the whole period. It still needs `btree_gist` for the equality part.
+
 When a rule fits a constraint, this is the strongest protection there is: it works for every code path, every script and every manual fix, forever.
 
 ---

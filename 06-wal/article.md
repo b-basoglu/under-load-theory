@@ -119,6 +119,8 @@ In PostgreSQL, three settings control this:
 - **`max_wal_size`** — start a checkpoint early once this much WAL has been written since the last one (1 GB by default). If checkpoints keep being triggered by this limit, PostgreSQL logs "checkpoints are occurring too frequently" — a sign that it's too small for the write volume.
 - **`checkpoint_completion_target`** — spread the checkpoint's writes over this fraction of the interval (0.9 by default), so it doesn't hit the disk all at once.
 
+Full-page images are often the largest part of WAL volume right after a checkpoint. **`wal_compression`** (off by default; `lz4` or `zstd` since PostgreSQL 15) compresses those images, trading a little CPU for less WAL to write, replicate and archive.
+
 A common production approach is to raise `max_wal_size` so checkpoints are normally triggered by time, then pick `checkpoint_timeout` from the recovery time the business can accept. InnoDB works the same way in principle: the size of its redo log bounds how far behind the flushed pages can fall, and therefore how much must be replayed.
 
 ---
@@ -131,7 +133,7 @@ It works almost by itself. While one flush is in progress, other transactions th
 
 The benefit depends on how slow a flush is. On a local NVMe drive a flush may take a fraction of a millisecond, so there is little time for others to pile up behind it. On network-attached cloud volumes a flush can take a millisecond or more, many commits arrive in the meantime, and group commit makes a large difference. PostgreSQL also has two settings, `commit_delay` and `commit_siblings`, that make a committing transaction wait a few microseconds for others to join when enough are active; they help only in specific workloads and are off by default.
 
-In PostgreSQL, comparing the number of commits (`xact_commit` in `pg_stat_database`) to the number of WAL flushes (`wal_sync` in `pg_stat_wal`) shows how much grouping is happening.
+In PostgreSQL, comparing the number of commits (`xact_commit` in `pg_stat_database`) to the number of WAL flushes shows how much grouping is happening. Since PostgreSQL 18 the flush count is `fsyncs` in `pg_stat_io` for `object = 'wal'`; older versions report it as `wal_sync` in `pg_stat_wal`.
 
 ---
 
@@ -200,7 +202,7 @@ The sequence plays out the same way every time:
 3. **With a limit** (`max_slot_wal_keep_size`), once the retained WAL passes it, the slot's `wal_status` changes from `reserved` to `unreserved`, and at a following checkpoint PostgreSQL removes the old WAL and marks the slot **`lost`**. The consumer can't continue from where it was: the history it needed is gone. It has to be set up again and take a full snapshot of the data — the "rebuild the search index from scratch" in the incident.
 4. **Without a limit** — PostgreSQL's default, `max_slot_wal_keep_size = -1` — the database keeps WAL for the abandoned slot indefinitely, until the disk holding the WAL fills up and the database stops accepting writes altogether.
 
-A limit turns "the whole database goes down" into "one consumer has to resync." Neither is pleasant, which is why the limit should be chosen deliberately — large enough to ride out a normal outage of the consumer, small enough that the disk survives — and backed by an alert that fires long before it's reached. Logical slots also hold back cleanup of system catalogs (Part 3), another reason not to leave one unread.
+A limit turns "the whole database goes down" into "one consumer has to resync." Neither is pleasant, which is why the limit should be chosen deliberately — large enough to ride out a normal outage of the consumer, small enough that the disk survives — and backed by an alert that fires long before it's reached. Logical slots also hold back cleanup of system catalogs (Part 3), another reason not to leave one unread. PostgreSQL 18 adds a second, time-based limit, `idle_replication_slot_timeout`: a slot nobody has used for longer than the timeout is invalidated at a checkpoint, which catches the forgotten test slot before its retained WAL becomes large.
 
 ---
 
@@ -221,7 +223,7 @@ A limit turns "the whole database goes down" into "one consumer has to resync." 
 - **WAL generation rate.** `wal_bytes` in `pg_stat_wal`, or how fast `pg_current_wal_lsn()` advances. A sudden jump usually means a big batch job, a new index or a burst of full-page images after checkpoints.
 - **WAL retained by replication slots.** `pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn)` per slot in `pg_replication_slots`, plus `wal_status`. Anything other than `reserved` needs attention.
 - **Checkpoint frequency and cause.** In PostgreSQL 17, `pg_stat_checkpointer` shows timed versus requested checkpoints. Many requested ones mean `max_wal_size` is too small.
-- **Commit and fsync latency.** With `track_wal_io_timing = on`, `pg_stat_wal` reports how long WAL writes and syncs take. Disk latency shows up here before it shows up anywhere else.
+- **Commit and fsync latency.** With `track_wal_io_timing = on`, PostgreSQL reports how long WAL writes and syncs take — in `pg_stat_io` (`object = 'wal'`, `write_time` and `fsync_time`) since version 18, in `pg_stat_wal` before that. Disk latency shows up here before it shows up anywhere else.
 - **Replication and CDC lag**, in bytes and in seconds.
 - **WAL archiving failures.** `failed_count` in `pg_stat_archiver`. A broken archive means point-in-time recovery silently stopped working.
 - **Disk free space** on the volume that holds the WAL.

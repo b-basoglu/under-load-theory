@@ -286,13 +286,15 @@ ALTER ROLE export_jobs SET idle_in_transaction_session_timeout = '10min';
 - **Run the job on a replica.** But know the trade-off: with `hot_standby_feedback` off, the replica may cancel a long query when the primary's cleanup removes versions it needs ("canceling statement due to conflict with recovery"); with it on, the long query pins the horizon on the primary again.
 - **Export a snapshot once and share it.** `pg_export_snapshot()` lets several short parallel workers read from the same snapshot, so the consistent read finishes faster — but the snapshot still pins the horizon while it's in use.
 
-**Get the space back only if it's needed.** Once the cause is gone, new versions will reuse the free space inside the table, so often nothing needs to be done. If the table is far larger than it should be and the space matters, `pg_repack` rebuilds it online. `VACUUM FULL` does the same while blocking all access, which on a busy table is an outage of its own.
+**Get the space back only if it's needed.** Once the cause is gone, new versions will reuse the free space inside the table, so often nothing needs to be done. If the table is far larger than it should be and the space matters, `pg_repack` rebuilds it online. `VACUUM FULL` does the same while blocking all access, which on a busy table is an outage of its own. PostgreSQL 19, due in November 2026, brings this into core: a new `REPACK` command replaces `VACUUM FULL` and `CLUSTER`, and `REPACK (CONCURRENTLY)` rebuilds the table while it stays in use — with the documented caveat that the concurrent mode isn't MVCC-safe for transactions with snapshots taken before it finished.
 
 **Help autovacuum keep up on big tables.** By default, autovacuum starts on a table once about 20% of its rows have changed (`autovacuum_vacuum_scale_factor = 0.2`, plus a small fixed threshold). On a table with hundreds of millions of rows, that's tens of millions of dead versions before cleanup even starts. A lower per-table setting makes it run more often, in smaller and cheaper passes:
 
 ```sql
 ALTER TABLE tickets SET (autovacuum_vacuum_scale_factor = 0.02);
 ```
+
+PostgreSQL 18 also caps the trigger point for every table: `autovacuum_vacuum_max_threshold` (100 million dead rows by default) starts a vacuum once that many rows have changed, however large the table, so the percentage no longer grows without limit on the biggest tables.
 
 Autovacuum is also throttled by default so it doesn't overwhelm the disk (`autovacuum_vacuum_cost_limit` and `autovacuum_vacuum_cost_delay`). On fast storage with a heavily updated table, raising the limit lets it finish each pass sooner. Tuning only helps, though, when the horizon is free: no autovacuum setting can remove versions an open snapshot still needs.
 

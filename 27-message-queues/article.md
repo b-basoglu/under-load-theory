@@ -239,6 +239,8 @@ The trade-offs that usually decide it:
 - **Ordering?** A log gives strong per-partition order; a queue with competing consumers gives little unless it's a FIFO variant.
 - **Operations.** Managed queues like SQS have almost no capacity planning; a log needs decisions about partitions, retention and consumer-group sizing.
 
+The line between the two is blurring. Kafka 4.2 (2026) made **share groups** — "queues for Kafka" — production-ready: consumers in a share group take records from the same partitions cooperatively, acknowledge each record individually, and a record that isn't acknowledged in time is redelivered to another consumer. That gives queue-style competing consumers, with more consumers than partitions, on top of a log — but without per-key ordering, since records from one partition can be processed by several consumers at once. Ordinary consumer groups also got a new rebalance protocol in Kafka 4.0 (KIP-848): the broker computes assignments and moves partitions one consumer at a time, instead of pausing the whole group on every membership change.
+
 Many systems use both: a log for domain events (`ticket.created`, `ticket.updated`) consumed by several services, and queues for the jobs those services generate. Either way, the delivery guarantee is the same — at-least-once by default — and every consumer rule in this article applies to both.
 
 ---

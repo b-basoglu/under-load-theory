@@ -70,7 +70,7 @@ A worked example, with server B 300 ms behind server A:
 
 Any pair of updates less than 300 ms apart, with the earlier one on A, loses the later one. That makes the damage concentrated exactly where it hurts: on **busy** items. An escalated ticket that several agents touch every few seconds, a shared document, a counter, a user's settings synced from two devices. The quiet items, updated once an hour, never notice. And LWW gives no signal: the discarded write simply isn't there.
 
-This is not a hypothetical design. Cassandra resolves conflicting writes to a cell by timestamp, and those timestamps are often set by the client. DynamoDB global tables resolve concurrent writes across regions with last-writer-wins. Both document it; both make clock discipline part of correctness.
+This is not a hypothetical design. Cassandra resolves conflicting writes to a cell by timestamp, and those timestamps are often set by the client. DynamoDB global tables in their default multi-Region *eventual* consistency mode resolve concurrent writes across regions with last-writer-wins. Both document it; both make clock discipline part of correctness. (Since June 2025 DynamoDB also offers multi-Region **strong** consistency for new global tables: writes are replicated synchronously, any region reads the latest value and there's nothing for last-writer-wins to resolve — at the price of cross-region latency on every write, and the mode is chosen when the table is created.)
 
 There are three ways out, depending on the system:
 

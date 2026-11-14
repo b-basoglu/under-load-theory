@@ -133,7 +133,7 @@ In a real system the routing map isn't updated everywhere at the same instant. A
 
 The principle — a former owner must **refuse**, not quietly accept — is general. It returns in Part 41 on split brain and Part 42 on fencing tokens. A rebalance is a change of ownership, and every ownership change needs a way to stop the previous owner from acting.
 
-Built-in systems implement exactly this. Redis Cluster nodes answer a request for a slot they no longer own with a `MOVED` redirect naming the new owner, and with `ASK` while a slot is mid-migration. MongoDB shards check the routing version attached to each request and reject stale ones. Vitess's `SwitchTraffic` stops writes on the source before redirecting them.
+Built-in systems implement exactly this. Redis Cluster nodes answer a request for a slot they no longer own with a `MOVED` redirect naming the new owner, and with `ASK` while a slot is mid-migration. That classic migration moves keys one batch at a time, so a slot is split between two nodes for the whole move; Valkey 9.0 added **atomic slot migration** (`CLUSTER MIGRATESLOTS`), which copies a slot in the background, keeps streaming its new writes, and hands ownership over in one step at the end. MongoDB shards check the routing version attached to each request and reject stale ones. Vitess's `SwitchTraffic` stops writes on the source before redirecting them.
 
 ### Switching the routing atomically
 

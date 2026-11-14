@@ -185,7 +185,7 @@ At a few services, continuous profiling is mostly a matter of installing an agen
 - **Stack walking.** Recording a stack reliably requires either frame pointers or unwind information. Some Linux distributions have re-enabled frame pointers by default in recent releases largely to make whole-system profiling easier.
 - **Storage and retention.** Profiles are much larger than metrics. A common pattern keeps full-resolution profiles for days and down-sampled or merged ones for weeks.
 - **Cost of the collection itself.** Overhead per host is small, but it's paid on every host; it belongs in the capacity plan.
-- **Standardization.** Formats such as `pprof` are widely supported, and OpenTelemetry is developing profiles as an additional signal, which should make collection less vendor-specific over time.
+- **Standardization.** Formats such as `pprof` are widely supported, and OpenTelemetry is adding profiles as a fourth signal next to traces, metrics and logs. It reached public alpha in March 2026 — the project itself says not to rely on it for critical production workloads yet — but it points to collection that is less vendor-specific and profiles that link directly to traces.
 
 ### Privacy and access
 

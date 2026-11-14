@@ -104,6 +104,8 @@ end
 
 With compare-and-delete, worker A's late release deletes nothing. Renewal follows the same rule: extend the TTL only if the value is still yours (the same script, with `PEXPIRE` instead of `DEL`). In etcd and ZooKeeper the equivalent is built in: a lock belongs to a lease or a session, and only that lease or session can release it.
 
+Newer Redis-compatible servers make the script unnecessary. Redis 8.4 added `DELEX key IFEQ <value>`, which deletes the key only if it still holds that value, and `SET key <value> IFEQ <value> PX <ms>`, which renews the TTL under the same condition. Valkey 9.0 has `DELIFEQ key <value>`. On older versions the Lua script is still the way to do it.
+
 That answers "how should a client safely release or renew a lease?": with an owner identity unique to this acquisition, checked atomically by the store on every release and renewal.
 
 ---
@@ -126,7 +128,7 @@ The holder never needs to know it was paused. The resource knows a newer holder 
 Two requirements make it work:
 
 - **The token comes from the lock service and only grows.** A counter incremented on every grant, etcd's revision number for the lock key (the same epoch as Part 40), ZooKeeper's transaction ID (`zxid`) or a znode's sequence number. A token chosen by the client, or a timestamp, isn't safe.
-- **The resource checks it.** A database can keep a `fences` row per protected item and update it with `… SET max_token = :token WHERE max_token <= :token` inside the same transaction as the real write; zero rows updated means a newer holder exists, so the transaction aborts. Storage that supports conditional writes can take the token as a condition. A downstream service can record the highest token per resource.
+- **The resource checks it.** A database can keep a `fences` row per protected item and update it with `… SET max_token = :token WHERE max_token <= :token` inside the same transaction as the real write; zero rows updated means a newer holder exists, so the transaction aborts. Storage that supports conditional writes can take the token as a condition — Amazon S3, for example, accepts `If-Match` with the object's current ETag and `If-None-Match: *` for create-only writes, so a stale holder's overwrite fails with `412 Precondition Failed`. A downstream service can record the highest token per resource.
 
 If the resource **can't** check a token — an external billing API that accepts any call — the lock alone can't make it safe. Then the protection has to come from the resource's own idempotency (the idempotency key above), or from a component in front of it that can check tokens.
 

@@ -249,7 +249,7 @@ Guardrails:
 
 - **Alert on slot lag**: `pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn)` from `pg_replication_slots`, in bytes, against a threshold well below the free disk space.
 - **Cap it** with `max_slot_wal_keep_size` (PostgreSQL 13+). If the slot falls too far behind, PostgreSQL invalidates it instead of filling the disk. The connector then has to re-snapshot (Part 30) — painful, but far better than the primary stopping.
-- **Drop slots that are no longer used.** A slot created for a test connector and forgotten pins WAL forever.
+- **Drop slots that are no longer used.** A slot created for a test connector and forgotten pins WAL forever. PostgreSQL 18 adds a time-based backstop, `idle_replication_slot_timeout` (off by default): a slot unused for longer than the timeout is invalidated at the next checkpoint.
 
 ### The quiet outbox on a busy database
 
@@ -259,7 +259,7 @@ Debezium's **heartbeat** solves this. With `heartbeat.interval.ms` set, the conn
 
 ### Other operational details
 
-- **Failover.** Before PostgreSQL 17, logical replication slots lived only on the primary and were not copied to standbys; after a failover, the slot was gone and the connector had to re-snapshot. PostgreSQL 17 added slot synchronisation to standbys (`failover` slots with `sync_replication_slots`). Managed databases document their own behaviour here, and it's worth reading before the first failover, not after.
+- **Failover.** Before PostgreSQL 17, logical replication slots lived only on the primary and were not copied to standbys; after a failover, the slot was gone and the connector had to re-snapshot. PostgreSQL 17 added slot synchronisation to standbys (`failover` slots with `sync_replication_slots`), and Debezium's `slot.failover` setting asks the connector to create its slot that way. The standby also needs `hot_standby_feedback` on, and the primary's `synchronized_standby_slots` makes logical consumers wait until the standby has the changes, so the connector never gets ahead of a future primary. Managed databases document their own behaviour here, and it's worth reading before the first failover, not after.
 - **Schema of the outbox.** The router expects its column names (`id`, `aggregatetype`, `aggregateid`, `type`, `payload` by default); different names are mapped through configuration.
 - **Connector health.** A Connect task can fail and stay failed while the worker process looks healthy. Task status needs its own alert.
 

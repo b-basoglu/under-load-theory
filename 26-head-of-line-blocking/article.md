@@ -147,6 +147,8 @@ If one tenant's traffic is consistently large or slow, give it its own partition
 
 SQS FIFO queues make this explicit in their design: ordering applies within a **message group**, and while a message from a group is in flight, later messages from the same group aren't delivered — but other groups proceed independently. Choosing the message group ID per ticket rather than per tenant, or per tenant rather than one group for everything, is choosing the size of the line.
 
+Standard SQS queues, which promise no order at all, gained a related tool in 2025: **fair queues**. A producer tags each message with a tenant as its message group ID, and when one tenant floods the queue, SQS delivers the quiet tenants' messages first instead of making them wait behind the backlog. Nobody's messages are dropped and consumers don't change; the noisy tenant just stops setting everyone else's dwell time.
+
 ---
 
 ## Connections: HTTP/1.1, HTTP/2 and the transport layer

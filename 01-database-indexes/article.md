@@ -340,7 +340,7 @@ An index with zero scans over a long period, especially a large one, costs on ev
 
 ## Reading the plan: EXPLAIN
 
-There's never a need to guess whether an index is used. `EXPLAIN` in front of a query shows the plan the database chose. `EXPLAIN (ANALYZE, BUFFERS)` goes further: it actually runs the query and reports what happened, including how many pages it touched.
+There's never a need to guess whether an index is used. `EXPLAIN` in front of a query shows the plan the database chose. `EXPLAIN (ANALYZE, BUFFERS)` goes further: it actually runs the query and reports what happened, including how many pages it touched. (From PostgreSQL 18, `EXPLAIN ANALYZE` includes the buffer counts by default; writing `BUFFERS` explicitly keeps the command working the same on older versions.)
 
 A simplified version of what PostgreSQL shows for My Queue with the three single-column indexes:
 
@@ -388,7 +388,7 @@ What to look for in any plan:
 
 On a large, busy table, adding an index is a production change like any other.
 
-**Always build with `CONCURRENTLY`** in PostgreSQL, or with an online schema-change tool in MySQL (such as `gh-ost` or `pt-online-schema-change`, which build the change on a copy of the table and swap it in). A plain `CREATE INDEX` holds a lock that blocks every `INSERT`, `UPDATE` and `DELETE` on the table until the build finishes — on a big table, that can be minutes or hours of the product being read-only. `CONCURRENTLY` takes a weaker lock that allows writes; in exchange, it scans the table twice, waits for running transactions to finish, and takes longer.
+**Always build with `CONCURRENTLY`** in PostgreSQL. In MySQL, InnoDB already adds a secondary index online — reads and writes continue, and the table isn't rebuilt — and `ALGORITHM=INPLACE, LOCK=NONE` makes the statement fail instead of silently taking a stronger lock. Online schema-change tools such as `gh-ost` or `pt-online-schema-change`, which build the change on a copy of the table and swap it in, are for heavier changes or when replication lag from one large DDL is a problem. A plain `CREATE INDEX` holds a lock that blocks every `INSERT`, `UPDATE` and `DELETE` on the table until the build finishes — on a big table, that can be minutes or hours of the product being read-only. `CONCURRENTLY` takes a weaker lock that allows writes; in exchange, it scans the table twice, waits for running transactions to finish, and takes longer.
 
 `CONCURRENTLY` can't run inside a transaction (a group of statements applied all-or-nothing — the topic of Part 2), so the **migration** tool (the tool that applies schema changes) has to support that.
 
@@ -460,7 +460,7 @@ Staging lacks production's size and skew. The largest tenant can be thousands of
 Every index speeds up some reads and is updated on every insert, delete and change to its columns, writing more data and more WAL. In PostgreSQL, indexing a frequently updated column can also prevent HOT updates, so every update touches every index. Add indexes on purpose, and drop the ones that don't earn their keep.
 
 ### How do you add an index to a busy table safely?
-Build it `CONCURRENTLY` (or with an online schema-change tool in MySQL), one per migration, off-peak, with enough disk. Check `indisvalid` afterwards, since a failed concurrent build leaves an invalid index behind, try the plan first with a hypothetical index, and verify it with the largest tenant's values.
+Build it `CONCURRENTLY` (in MySQL, online with `ALGORITHM=INPLACE, LOCK=NONE`), one per migration, off-peak, with enough disk. Check `indisvalid` afterwards, since a failed concurrent build leaves an invalid index behind, try the plan first with a hypothetical index, and verify it with the largest tenant's values.
 
 ---
 

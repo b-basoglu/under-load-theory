@@ -65,7 +65,7 @@ There's also a smaller waste at the front: naive static batching pads all prompt
 
 ## Continuous batching: schedule every step
 
-**Continuous batching** — also called **iteration-level scheduling** or **in-flight batching** — makes the scheduling decision at **every decode step** instead of once per batch. The idea was introduced for transformer serving by the Orca system (Yu et al., OSDI 2022), and is now the default in vLLM, SGLang, Hugging Face TGI, TensorRT-LLM and essentially every production LLM engine.
+**Continuous batching** — also called **iteration-level scheduling** or **in-flight batching** — makes the scheduling decision at **every decode step** instead of once per batch. The idea was introduced for transformer serving by the Orca system (Yu et al., OSDI 2022), and is now the default in vLLM, SGLang, TensorRT-LLM and essentially every production LLM engine. (Hugging Face's TGI used it too, but it has been in maintenance mode since December 2025 and its repository is archived; Hugging Face points new deployments to vLLM or SGLang.)
 
 ![The scheduler's loop runs once per step](images/04-loop.png)
 
@@ -168,7 +168,7 @@ Moving from a request-at-a-time or static-batching server to a continuous-batchi
 
 ![Batching guardrails](images/08-guardrails.png)
 
-1. **Serve with an engine that batches per step** — vLLM, SGLang, TGI, TensorRT-LLM — never a request-per-call loop or fixed batches.
+1. **Serve with an engine that batches per step** — vLLM, SGLang, TensorRT-LLM — never a request-per-call loop or fixed batches.
 2. **Admission respects KV cache budgets**: concurrent-sequence and token limits, bounded output length, preemption only as a safety valve.
 3. **Long prefills are chunked** (or disaggregated) so they don't stall every decoding sequence.
 4. **Batch limits come from latency targets**, and the target metric is goodput, not raw tokens per second.

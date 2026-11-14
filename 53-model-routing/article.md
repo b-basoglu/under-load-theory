@@ -53,7 +53,7 @@ A router built on this view has a simple first job: for each request type, find 
 
 The second thing the logs reveal is where the money actually goes. LLM cost — tokens on a hosted API, GPU time on a self-hosted one — is driven largely by **output tokens**, since each one is a sequential decode step (Part 48), and output tokens are typically priced several times higher than input tokens.
 
-An extraction or a classification produces a handful of tokens. A calculation with its working, or a drafted reply, produces hundreds. So a request type that's a small share of traffic can be most of the bill. That changes what routing can save: moving the many cheap requests to a small model may save surprisingly little, while the few expensive ones decide the total.
+An extraction or a classification produces a handful of tokens. A calculation with its working, or a drafted reply, produces hundreds. So a request type that's a small share of traffic can be most of the bill. **Reasoning models** make this sharper: the thinking they do before answering is billed as output tokens, even though the user never sees it. The same short answer can cost a few hundred tokens or several thousand depending on how much the model reasoned. That changes what routing can save: moving the many cheap requests to a small model may save surprisingly little, while the few expensive ones decide the total.
 
 ---
 
@@ -83,6 +83,8 @@ When the endpoint doesn't determine difficulty, a router can use other signals a
 - **A learned classifier**: a small, fast model — or even a simple model on embeddings — trained to predict whether the cheap model will succeed on this request. Research systems such as RouteLLM (Ong et al., 2024) train routers like this on preference data, comparing which model's answers people preferred, and report substantial cost reductions at similar quality on their benchmarks. The classifier must be cheap relative to what it saves; a router that calls a large model to decide where to send the request has spent the saving before any answer exists.
 
 Many production routers are **hybrids**: hard rules for capabilities, contracts and context length first, then a cheap classifier or per-type default for everything else.
+
+The choice isn't only *which model*. Current models expose a **reasoning effort** setting — `reasoning.effort` in OpenAI's API, `output_config.effort` in Anthropic's — that trades thinking tokens for quality on the same model. Routing an easy request to low effort can save as much as routing it to a smaller model, without changing model contracts. Routing is also increasingly offered as a service: Amazon Bedrock's intelligent prompt routing picks between two models of one family per request, gateways such as OpenRouter offer an automatic router, and some providers route between model variants behind a single model name. A managed router still has to be evaluated on the product's own traffic, like any other.
 
 ---
 

@@ -112,7 +112,7 @@ def route(token_lsn):
 - **Version tokens instead of log positions.** The token can be the entity's version (Part 27's version numbers): "show ticket 48213 at version ≥ 17." The read goes to any replica; if the row there is older, it retries elsewhere or on the primary. This works across systems where log positions aren't comparable — caches, search indexes, CQRS projections (Part 32), where "has this projection caught up?" can only be answered by versions.
 - **Timestamps.** Some databases offer "read at a timestamp at least as new as T," using a clock the database itself controls. Wall-clock timestamps from application servers are risky because clocks disagree (Part 38).
 - **Primary fallback only.** The simplest correct version: if the token is newer than every replica's position, read the primary — no waiting. Slightly more primary load, no added latency.
-- **Wait on the replica.** Instead of polling positions, the read can ask the replica to wait until it has replayed the token (MySQL's `WAIT_FOR_EXECUTED_GTID_SET` with a timeout, or a short loop on `pg_last_wal_replay_lsn()`), then run the query on the same connection.
+- **Wait on the replica.** Instead of polling positions, the read can ask the replica to wait until it has replayed the token (MySQL's `WAIT_FOR_EXECUTED_GTID_SET` with a timeout; in PostgreSQL 19, due in November 2026, the new `WAIT FOR LSN '…' WITH (TIMEOUT …)` command; on older versions, a short loop on `pg_last_wal_replay_lsn()`), then run the query on the same connection.
 
 ---
 
