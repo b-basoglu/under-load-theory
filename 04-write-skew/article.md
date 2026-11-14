@@ -131,6 +131,7 @@ Things to know:
 
 - **Every transaction that touches the rule must run at Serializable.** In PostgreSQL, the guarantee only covers transactions running at that level. A Read Committed transaction changing admin roles on the side can still slip through.
 - **It can abort transactions that weren't really in conflict.** SSI tracks reads at the level of rows, pages or whole tables. When the query can use an index, the tracking is precise; without one, it falls back to coarser tracking and aborts more often. Good indexes reduce false aborts.
+- **Don't treat SSI as a substitute for a constraint you can declare.** In the common two-transaction race, Serializable catches write skew. As of late 2026 there is also a rare open edge case: after SSI summarizes an old transaction's predicate locks, some write-skew schedules have been shown to commit without a `40001` (a fix is in flight for a later release). Prefer an exclusion/temporal constraint or a single-row rule when the invariant can live in the schema.
 - **Long-running reports can use `SERIALIZABLE READ ONLY DEFERRABLE`** in PostgreSQL. It waits for a moment when it can safely run without ever being aborted.
 
 ### 2. Lock the rows the rule depends on
