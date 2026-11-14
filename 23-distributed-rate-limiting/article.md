@@ -74,13 +74,13 @@ return { allowed, tokens }
 
 A few details in that script matter:
 
-- **The store's clock.** If each API server passes its own timestamp, servers whose clocks disagree (Part 38) refill the bucket inconsistently — a server whose clock runs ahead refills it early. Reading the time inside the script gives every check the same clock. (Recent Redis versions allow calling `TIME` inside scripts.)
+- **The store's clock.** If each API server passes its own timestamp, servers whose clocks disagree (Part 38) refill the bucket inconsistently — a server whose clock runs ahead refills it early. Reading the time inside the script gives every check the same clock. Since Redis 5 defaults to effects replication (and Redis 7 dropped verbatim script replication), calling `TIME` inside a mutating script is allowed: replicas receive the resulting writes, not the script.
 - **A TTL on every key.** Without an expiry, every client that ever made a request leaves a bucket behind forever. With one, a bucket for a quiet client disappears, and its next request starts from a full bucket — which is exactly what an idle client is entitled to.
 - **Load the script once**, with `SCRIPT LOAD`, and call it by its hash with `EVALSHA`, so each request sends a short identifier rather than the whole script.
 
-Modules exist that implement rate-limiting algorithms as single atomic commands (for example, `redis-cell` implements the GCRA variant from Part 22), which avoids maintaining the script.
+Modules exist that implement rate-limiting algorithms as single atomic commands (for example, `redis-cell` implements the GCRA variant from Part 22 via `CL.THROTTLE`), which avoids maintaining the script — though as of late 2025 the module is in best-effort maintenance, so many teams keep a short Lua script they own.
 
-Fixed-window counters need the same care. The common `INCR` followed by `EXPIRE` is two commands: if the server crashes between them, the key never expires and the client is locked out permanently. Doing both in one script — or setting the expiry atomically when the key is created — avoids it.
+Fixed-window counters need the same care. The common `INCR` followed by `EXPIRE` is two commands: if the server crashes between them, the key never expires and the client is locked out permanently. Doing both in one script — or setting the expiry atomically when the key is created — avoids it. Redis 8.8 goes further for window counters with a native **`INCREX`** command: one atomic increment with an upper bound (`UBOUND`), optional saturate, and `ENX` so the window's TTL is set only when the key is created — the fixed-window `INCR`+`EXPIRE` race, without a script. Token buckets and GCRA still need a script or a module; `INCREX` covers the window-counter family.
 
 ### Answering with a 429
 
